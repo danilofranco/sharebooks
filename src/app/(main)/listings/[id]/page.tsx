@@ -2,13 +2,15 @@ import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { ListingDetail } from "@/components/listings/listing-detail";
 
+import type { ListingWithPhotos } from "@/lib/types/database";
+
 export async function generateMetadata({ params }: { params: { id: string } }) {
   const supabase = await createServerSupabaseClient();
-  const { data } = await supabase
+  const { data } = (await supabase
     .from("listings")
     .select("title, school_name")
     .eq("id", params.id)
-    .single();
+    .single()) as { data: Pick<ListingWithPhotos, "title" | "school_name"> | null };
 
   return {
     title: data ? `${data.title} — ${data.school_name} | ShareBooks` : "ShareBooks",
@@ -21,11 +23,18 @@ export default async function ListingPage({
   params: { id: string };
 }) {
   const supabase = await createServerSupabaseClient();
+  // params pode ser uma Promise em alguns contexts — unwrappamos com segurança
+  const resolvedParams = (params as any) && typeof (params as any).then === "function" ? await params : params;
+  const listingId = (resolvedParams as any).id;
 
-  // Incrementar views
-  await supabase.rpc("increment_views" as any, { listing_id: params.id }).catch(() => {});
+  // Incrementar views (try/catch, evitar usar .catch() após await)
+  try {
+    await (supabase as any).rpc("increment_views", { listing_id: listingId });
+  } catch {
+    // ignore
+  }
 
-  const { data: listing } = await supabase
+  const { data: listing } = await (supabase as any)
     .from("listings")
     .select(
       `
@@ -34,7 +43,7 @@ export default async function ListingPage({
       profiles!user_id (id, full_name, location_text)
     `,
     )
-    .eq("id", params.id)
+    .eq("id", listingId)
     .neq("status", "removed")
     .single();
 

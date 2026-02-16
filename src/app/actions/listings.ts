@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { validateListingFields, sanitizeText, stripHtml } from "@/lib/validation";
 import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { secLog } from "@/lib/security-logger";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * Server Action: Criar listing.
@@ -82,14 +83,46 @@ export async function createListing(formData: {
     delivery_method: formData.delivery_method,
   };
 
-  const { data, error } = await supabase
-    .from("listings")
-    .insert(payload)
-    .select("id")
-    .single();
+  // Tenta inserir; se falhar por FK (perfil ausente), cria profile via admin e re-tenta
+  let data: any = null;
+  let error: any = null;
+
+  try {
+    const res = await (supabase as any).from("listings").insert(payload).select("id").single();
+    data = res.data;
+    error = res.error;
+  } catch (err) {
+    error = err;
+  }
 
   if (error) {
-    secLog("db_error", { userId: user.id, action: "createListing", error: error.message });
+    const msg = (error && (error.message || error))?.toString() || "";
+    if (msg.includes("listings_user_id_fkey") || /foreign key/i.test(msg)) {
+      try {
+        const admin = createAdminClient();
+        // criar profile mínimo (ignora erro se já existir)
+        await (admin as any)
+          .from("profiles")
+          .insert({
+            id: user.id,
+            full_name: (user as any)?.user_metadata?.full_name ?? null,
+            role: "user",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .maybeSingle();
+
+        const retry = await (supabase as any).from("listings").insert(payload).select("id").single();
+        data = retry.data;
+        error = retry.error;
+      } catch (err) {
+        error = err;
+      }
+    }
+  }
+
+  if (error) {
+    secLog("db_error", { userId: user.id, action: "createListing", error: (error && error.message) || error });
     return { error: "Erro ao criar anúncio", status: 500 };
   }
 
@@ -190,7 +223,7 @@ export async function updateListing(
     delivery_method: formData.delivery_method,
   };
 
-  const { error } = await supabase
+  const { error } = await (supabase as any)
     .from("listings")
     .update(payload)
     .eq("id", listingId);

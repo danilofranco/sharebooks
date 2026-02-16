@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { ChatRoom } from "@/components/chat/chat-room";
+import type { Conversation } from "@/lib/types/database";
 
 export const metadata = { title: "Conversa — ShareBooks" };
 
@@ -16,7 +17,7 @@ export default async function ConversationPage({
 
   if (!user) redirect("/auth/sign-in");
 
-  const { data: conversation } = await supabase
+  const { data: conversation } = (await supabase
     .from("conversations")
     .select(
       `
@@ -27,7 +28,7 @@ export default async function ConversationPage({
     `,
     )
     .eq("id", params.id)
-    .single();
+    .single()) as { data: Conversation | null };
 
   if (!conversation) notFound();
 
@@ -46,7 +47,7 @@ export default async function ConversationPage({
     .order("created_at", { ascending: true });
 
   // Marcar como lido
-  await supabase
+  await (supabase as any)
     .from("messages")
     .update({ read_at: new Date().toISOString() })
     .eq("conversation_id", params.id)

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { AdminListings } from "@/components/admin/admin-listings";
+import type { Profile } from "@/lib/types/database";
 
 export const metadata = { title: "Admin — ShareBooks" };
 
@@ -12,11 +13,11 @@ export default async function AdminPage() {
 
   if (!user) redirect("/auth/sign-in");
 
-  const { data: profile } = await supabase
+  const { data: profile } = (await supabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
-    .single();
+    .single()) as { data: Pick<Profile, "role"> | null };
 
   if (profile?.role !== "admin") redirect("/dashboard");
 

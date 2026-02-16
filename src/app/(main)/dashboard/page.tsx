@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Plus, MessageCircle, BookOpen } from "lucide-react";
 import { STATUSES } from "@/lib/constants";
 import { formatPrice, timeAgo } from "@/lib/utils";
+import type { ListingWithPhotos, ConversationWithDetails } from "@/lib/types/database";
 
 export const metadata = { title: "Painel — ShareBooks" };
 
@@ -16,15 +17,15 @@ export default async function DashboardPage() {
   if (!user) redirect("/auth/sign-in?redirectTo=/dashboard");
 
   // Meus anúncios
-  const { data: listings } = await supabase
+  const { data: listings } = (await supabase
     .from("listings")
     .select("*, listing_photos (url, sort_order)")
     .eq("user_id", user.id)
     .neq("status", "removed")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })) as { data: ListingWithPhotos[] | null };
 
   // Minhas conversas
-  const { data: conversations } = await supabase
+  const { data: conversations } = (await supabase
     .from("conversations")
     .select(
       `
@@ -35,7 +36,7 @@ export default async function DashboardPage() {
     `,
     )
     .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending: false })) as { data: ConversationWithDetails[] | null };
 
   // Contar mensagens não lidas
   const { count: unreadCount } = await supabase
@@ -45,7 +46,7 @@ export default async function DashboardPage() {
     .is("read_at", null)
     .in(
       "conversation_id",
-      (conversations || []).map((c) => c.id),
+      (conversations || []).map((c: any) => (c as any).id),
     );
 
   return (
