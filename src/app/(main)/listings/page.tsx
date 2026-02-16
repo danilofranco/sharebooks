@@ -25,7 +25,11 @@ export default async function ListingsPage({
   searchParams: SearchParams;
 }) {
   const supabase = await createServerSupabaseClient();
-  const page = Math.max(1, parseInt(searchParams.page || "1"));
+  // Unwrap searchParams if it's a Promise in this runtime
+  const resolvedSearchParams = (searchParams as any) && typeof (searchParams as any).then === "function"
+    ? await searchParams
+    : searchParams;
+  const page = Math.max(1, parseInt((resolvedSearchParams.page as string) || "1"));
   const from = (page - 1) * LISTINGS_PER_PAGE;
   const to = from + LISTINGS_PER_PAGE - 1;
 
@@ -35,31 +39,31 @@ export default async function ListingsPage({
     .eq("status", "active");
 
   // Filtros
-  if (searchParams.q) {
+  if (resolvedSearchParams.q) {
     query = query.or(
-      `title.ilike.%${searchParams.q}%,school_name.ilike.%${searchParams.q}%`,
+      `title.ilike.%${resolvedSearchParams.q}%,school_name.ilike.%${resolvedSearchParams.q}%`,
     );
   }
-  if (searchParams.school) {
-    query = query.ilike("school_name", `%${searchParams.school}%`);
+  if (resolvedSearchParams.school) {
+    query = query.ilike("school_name", `%${resolvedSearchParams.school}%`);
   }
-  if (searchParams.grade) {
-    query = query.eq("grade", searchParams.grade);
+  if (resolvedSearchParams.grade) {
+    query = query.eq("grade", resolvedSearchParams.grade);
   }
-  if (searchParams.condition) {
-    query = query.eq("condition", searchParams.condition);
+  if (resolvedSearchParams.condition) {
+    query = query.eq("condition", resolvedSearchParams.condition);
   }
-  if (searchParams.deal_type) {
-    query = query.eq("deal_type", searchParams.deal_type);
+  if (resolvedSearchParams.deal_type) {
+    query = query.eq("deal_type", resolvedSearchParams.deal_type);
   }
-  if (searchParams.min_price) {
-    query = query.gte("price_cents", parseInt(searchParams.min_price) * 100);
+  if (resolvedSearchParams.min_price) {
+    query = query.gte("price_cents", parseInt(resolvedSearchParams.min_price) * 100);
   }
-  if (searchParams.max_price) {
-    query = query.lte("price_cents", parseInt(searchParams.max_price) * 100);
+  if (resolvedSearchParams.max_price) {
+    query = query.lte("price_cents", parseInt(resolvedSearchParams.max_price) * 100);
   }
-  if (searchParams.location) {
-    query = query.ilike("location_text", `%${searchParams.location}%`);
+  if (resolvedSearchParams.location) {
+    query = query.ilike("location_text", `%${resolvedSearchParams.location}%`);
   }
 
   // Ordenação
@@ -104,7 +108,7 @@ export default async function ListingsPage({
             <div className="mt-8 flex items-center justify-center gap-2">
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
                 const params = new URLSearchParams(
-                  searchParams as Record<string, string>,
+                  resolvedSearchParams as Record<string, string>,
                 );
                 params.set("page", p.toString());
                 return (
