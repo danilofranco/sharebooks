@@ -1,15 +1,18 @@
 import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ListingDetail } from "@/components/listings/listing-detail";
 
 import type { ListingWithPhotos } from "@/lib/types/database";
 
-export async function generateMetadata({ params }: { params: { id: string } }) {
+export async function generateMetadata({ params }: { params: { id: string } | Promise<{ id: string }> }) {
+  const resolvedParams = (params as any) && typeof (params as any).then === "function" ? await params : params;
+  const id = (resolvedParams as any).id;
   const supabase = await createServerSupabaseClient();
   const { data } = (await supabase
     .from("listings")
     .select("title, school_name")
-    .eq("id", params.id)
+    .eq("id", id)
     .single()) as { data: Pick<ListingWithPhotos, "title" | "school_name"> | null };
 
   return {
@@ -49,6 +52,36 @@ export default async function ListingPage({
 
   if (!listing) notFound();
 
+  // Generate signed URLs for photos if needed (private bucket)
+  try {
+    const admin = createAdminClient();
+    const photos = (listing as any).listing_photos || [];
+    await Promise.all(
+      (photos as any[]).map(async (p) => {
+        if (!p) return;
+        // skip if already looks signed
+        if (p.url && (p.url.includes("token=") || p.url.includes("X-Amz-Signature"))) return;
+        let pathToUse = p.path || null;
+        if (!pathToUse && p.url) {
+          try {
+            const parsed = new URL(p.url);
+            const m = parsed.pathname.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)/);
+            if (m && m[1]) pathToUse = decodeURIComponent(m[1]);
+          } catch (e) {}
+        }
+        if (!pathToUse) return;
+        try {
+          const { data: signed, error } = await (admin as any)
+            .storage
+            .from("listing-photos")
+            .createSignedUrl(pathToUse, 60);
+          if (!error && signed?.signedUrl) p.url = signed.signedUrl;
+        } catch (e) {}
+      }),
+    );
+  } catch (e) {
+    // ignore
+  }
   const {
     data: { user },
   } = await supabase.auth.getUser();

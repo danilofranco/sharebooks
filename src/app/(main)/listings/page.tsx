@@ -3,6 +3,7 @@ import { LISTINGS_PER_PAGE } from "@/lib/constants";
 import { ListingCard } from "@/components/listings/listing-card";
 import { SearchFilters } from "@/components/listings/search-filters";
 import type { ListingWithPhotos } from "@/lib/types/database";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const metadata = { title: "Buscar Livros — ShareBooks" };
 
@@ -80,6 +81,54 @@ export default async function ListingsPage({
 
   const { data: listings, count } = await query.range(from, to);
 
+  // If storage is private, generate signed URLs server-side for the first photo of each listing
+  try {
+    if (listings && listings.length > 0) {
+      const admin = createAdminClient();
+      await Promise.all(
+        (listings as ListingWithPhotos[]).map(async (l) => {
+          const photos = l.listing_photos || [];
+          if (photos.length === 0) return;
+          const first = photos.sort((a, b) => a.sort_order - b.sort_order)[0];
+          // Determine storage path: prefer explicit `path`, fallback to extracting from public URL
+          let pathToUse: string | null = null;
+          if (first.path) {
+            pathToUse = first.path;
+          } else if (first.url && typeof first.url === "string") {
+            try {
+              // If URL already looks signed, skip
+              if (first.url.includes("token=") || first.url.includes("X-Amz-Signature")) {
+                return;
+              }
+              const parsed = new URL(first.url);
+              const m = parsed.pathname.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)/);
+              if (m && m[1]) {
+                pathToUse = decodeURIComponent(m[1]);
+              }
+            } catch (e) {
+              // ignore parse errors
+            }
+          }
+
+          if (!pathToUse) return;
+
+          try {
+            const { data: signed, error } = await (admin as any)
+              .storage
+              .from("listing-photos")
+              .createSignedUrl(pathToUse, 60);
+            if (!error && signed?.signedUrl) {
+              first.url = signed.signedUrl;
+            }
+          } catch (e) {
+            // ignore per-image errors
+          }
+        }),
+      );
+    }
+  } catch (err) {
+    // fail silently; images will try to use original URL
+  }
   const totalPages = Math.ceil((count || 0) / LISTINGS_PER_PAGE);
 
   return (

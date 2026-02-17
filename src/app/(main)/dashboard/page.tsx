@@ -5,6 +5,7 @@ import { Plus, MessageCircle, BookOpen } from "lucide-react";
 import { STATUSES } from "@/lib/constants";
 import { formatPrice, timeAgo } from "@/lib/utils";
 import type { ListingWithPhotos, ConversationWithDetails } from "@/lib/types/database";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const metadata = { title: "Painel — ShareBooks" };
 
@@ -49,6 +50,66 @@ export default async function DashboardPage() {
       (conversations || []).map((c: any) => (c as any).id),
     );
 
+  // Gerar signed URLs para imagens (se bucket privado)
+  try {
+    const admin = createAdminClient();
+    if (listings && listings.length > 0) {
+      await Promise.all(
+        (listings as ListingWithPhotos[]).map(async (l) => {
+          const photos = l.listing_photos || [];
+          if (photos.length === 0) return;
+          const first = photos.sort((a, b) => a.sort_order - b.sort_order)[0];
+          if (!first) return;
+          if (first.url && (first.url.includes("token=") || first.url.includes("X-Amz-Signature"))) return;
+          let pathToUse = first.path || null;
+          if (!pathToUse && first.url) {
+            try {
+              const parsed = new URL(first.url);
+              const m = parsed.pathname.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)/);
+              if (m && m[1]) pathToUse = decodeURIComponent(m[1]);
+            } catch (e) {}
+          }
+          if (!pathToUse) return;
+          try {
+            const { data: signed, error } = await (admin as any)
+              .storage
+              .from("listing-photos")
+              .createSignedUrl(pathToUse, 60);
+            if (!error && signed?.signedUrl) first.url = signed.signedUrl;
+          } catch (e) {}
+        }),
+      );
+    }
+
+    if (conversations && conversations.length > 0) {
+      await Promise.all(
+        (conversations as ConversationWithDetails[]).map(async (c) => {
+          const listing = (c as any).listings;
+          const photo = listing?.listing_photos?.[0];
+          if (!photo) return;
+          if (photo.url && (photo.url.includes("token=") || photo.url.includes("X-Amz-Signature"))) return;
+          let pathToUse = photo.path || null;
+          if (!pathToUse && photo.url) {
+            try {
+              const parsed = new URL(photo.url);
+              const m = parsed.pathname.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)/);
+              if (m && m[1]) pathToUse = decodeURIComponent(m[1]);
+            } catch (e) {}
+          }
+          if (!pathToUse) return;
+          try {
+            const { data: signed, error } = await (admin as any)
+              .storage
+              .from("listing-photos")
+              .createSignedUrl(pathToUse, 60);
+            if (!error && signed?.signedUrl) photo.url = signed.signedUrl;
+          } catch (e) {}
+        }),
+      );
+    }
+  } catch (e) {
+    // ignore
+  }
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 space-y-8">
       {/* Header */}

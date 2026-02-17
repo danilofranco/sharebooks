@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import { MapPin } from "lucide-react";
 import { DEAL_TYPES } from "@/lib/constants";
 import { formatPrice, timeAgo } from "@/lib/utils";
@@ -14,9 +17,47 @@ type Props = {
  * Inspirado OLX: card simples, preço em destaque
  */
 export function ListingCard({ listing }: Props) {
-  const photo = listing.listing_photos?.sort(
+  const firstPhoto = listing.listing_photos?.sort(
     (a, b) => a.sort_order - b.sort_order,
   )[0];
+  const [photoUrl, setPhotoUrl] = useState<string | undefined>(firstPhoto?.url);
+
+  useEffect(() => {
+    let mounted = true;
+    async function ensureSigned() {
+      const p = firstPhoto;
+      if (!p || !p.url) return;
+      if (p.url.includes("token=") || p.url.includes("X-Amz-Signature")) {
+        setPhotoUrl(p.url);
+        return;
+      }
+      try {
+        const parsed = new URL(p.url);
+        const m = parsed.pathname.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)/);
+        if (!m || !m[1]) {
+          setPhotoUrl(p.url);
+          return;
+        }
+        const path = decodeURIComponent(m[1]);
+        const res = await fetch(`/api/storage/signed?path=${encodeURIComponent(path)}`);
+        if (!mounted) return;
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.signedUrl) setPhotoUrl(json.signedUrl);
+          else setPhotoUrl(p.url);
+        } else {
+          setPhotoUrl(p.url);
+        }
+      } catch {
+        if (mounted) setPhotoUrl(p.url);
+      }
+    }
+    ensureSigned();
+    return () => {
+      mounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstPhoto?.url]);
 
   return (
     <Link
@@ -25,9 +66,9 @@ export function ListingCard({ listing }: Props) {
     >
       {/* Foto */}
       <div className="relative aspect-[4/3] bg-gray-100">
-        {photo ? (
+        {firstPhoto ? (
           <Image
-            src={photo.url}
+            src={photoUrl || firstPhoto.url}
             alt={listing.title}
             fill
             className="object-cover transition-transform duration-200 group-hover:scale-[1.03]"

@@ -27,6 +27,38 @@ export default async function AdminPage() {
     .order("created_at", { ascending: false })
     .limit(50);
 
+  // Generate signed URLs for listings images if needed
+  try {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const admin = createAdminClient();
+    const listArr = (listings as any[]) || [];
+    await Promise.all(
+      listArr.map(async (l) => {
+        const photos = l.listing_photos || [];
+        if (!photos.length) return;
+        const first = photos.sort((a: any, b: any) => a.sort_order - b.sort_order)[0];
+        if (!first) return;
+        if (first.url && (first.url.includes("token=") || first.url.includes("X-Amz-Signature"))) return;
+        let pathToUse = first.path || null;
+        if (!pathToUse && first.url) {
+          try {
+            const parsed = new URL(first.url);
+            const m = parsed.pathname.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)/);
+            if (m && m[1]) pathToUse = decodeURIComponent(m[1]);
+          } catch (e) {}
+        }
+        if (!pathToUse) return;
+        try {
+          const { data: signed, error } = await (admin as any)
+            .storage
+            .from("listing-photos")
+            .createSignedUrl(pathToUse, 60);
+          if (!error && signed?.signedUrl) first.url = signed.signedUrl;
+        } catch (e) {}
+      }),
+    );
+  } catch (e) {}
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <h1 className="mb-6 text-2xl font-bold text-red-600">Painel Admin</h1>

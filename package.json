@@ -23,6 +23,9 @@
     "tailwind-merge": "^2.6.0",
     "zustand": "^5.0.2"
   },
+  "optionalDependencies": {
+    "@amplitude/analytics-browser": "^2.1.0"
+  },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",

@@ -37,6 +37,40 @@ export function ListingDetail({ listing, currentUserId }: Props) {
   const photos = listing.listing_photos.sort((a, b) => a.sort_order - b.sort_order);
   const isOwner = currentUserId === listing.user_id;
   const profile = listing.profiles;
+  const [clientPhotos, setClientPhotos] = useState(() => photos.slice());
+
+  useEffect(() => {
+    let mounted = true;
+    async function ensureSignedPhotos() {
+      const pArr = photos || [];
+      const updated = [...pArr];
+      for (let i = 0; i < pArr.length; i++) {
+        const p = pArr[i];
+        if (!p || !p.url) continue;
+        if (p.url.includes("token=") || p.url.includes("X-Amz-Signature")) continue;
+        try {
+          const parsed = new URL(p.url);
+          const m = parsed.pathname.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)/);
+          if (!m || !m[1]) continue;
+          const path = decodeURIComponent(m[1]);
+          const res = await fetch(`/api/storage/signed?path=${encodeURIComponent(path)}`);
+          if (!mounted) return;
+          if (res.ok) {
+            const json = await res.json();
+            if (json?.signedUrl) updated[i] = { ...p, url: json.signedUrl };
+          }
+        } catch {
+          // ignore per-photo errors
+        }
+      }
+      if (mounted) setClientPhotos(updated);
+    }
+    ensureSignedPhotos();
+    return () => {
+      mounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photos.map((p) => p.url).join("|")]);
 
   // Touch swipe para galeria mobile
   const [touchStart, setTouchStart] = useState(0);
@@ -139,7 +173,7 @@ export function ListingDetail({ listing, currentUserId }: Props) {
         >
           <div className="aspect-[4/3] relative">
             <Image
-              src={photos[photoIdx].url}
+              src={clientPhotos[photoIdx].url}
               alt={listing.title}
               fill
               className="object-contain"
