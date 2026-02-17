@@ -53,7 +53,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' blob: data: https://*.supabase.co",
               "font-src 'self' https://fonts.gstatic.com",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.mercadopago.com",
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.mercadopago.com https://sr-client-cfg.amplitude.com https://api2.amplitude.com https://api.amplitude.com",
               "frame-src https://www.mercadopago.com.br https://www.mercadopago.com",
               "frame-ancestors 'none'",
               "base-uri 'self'",

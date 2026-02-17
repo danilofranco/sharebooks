@@ -4,7 +4,8 @@ export async function initAmplitude(clientKey?: string) {
   const amplitude = await import("@amplitude/analytics-browser");
   const key = clientKey || (process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY as string) || "";
   if (!key) return;
-  amplitude.init(key);
+  // Desabilita defaultTracking pra evitar eventos automáticos (PageView, Session, etc).
+  amplitude.init(key, { defaultTracking: false });
 }
 
 export async function trackEvent(name: string, properties?: Record<string, any>) {

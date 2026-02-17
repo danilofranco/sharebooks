@@ -21,6 +21,21 @@ export function ListingCard({ listing }: Props) {
     (a, b) => a.sort_order - b.sort_order,
   )[0];
   const [photoUrl, setPhotoUrl] = useState<string | undefined>(firstPhoto?.url);
+  // Inicializa com formato determinístico (UTC) para evitar mismatch entre server/client
+  // Inicializa com formato determinístico (UTC) para evitar mismatch entre server/client
+  const [timeText, setTimeText] = useState<string>(() =>
+    new Date(listing.created_at).toUTCString()
+  );
+  // Título da tooltip — inicia determinístico (ISO) e atualiza para locale no client
+  const [titleText, setTitleText] = useState<string>(() =>
+    new Date(listing.created_at).toISOString()
+  );
+
+  useEffect(() => {
+    // Atualiza o texto de tempo e o title no client para evitar hydration mismatch
+    setTimeText(timeAgo(listing.created_at));
+    setTitleText(new Date(listing.created_at).toLocaleString());
+  }, [listing.created_at]);
 
   useEffect(() => {
     let mounted = true;
@@ -119,7 +134,9 @@ export function ListingCard({ listing }: Props) {
           ) : (
             <span />
           )}
-          <span className="flex-shrink-0">{timeAgo(listing.created_at)}</span>
+          <span className="flex-shrink-0" title={titleText}>
+            {timeText}
+          </span>
         </div>
       </div>
     </Link>
