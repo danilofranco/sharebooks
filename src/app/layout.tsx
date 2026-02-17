@@ -10,7 +10,9 @@ export const metadata: Metadata = {
   description:
     "Compre, venda ou doe livros didáticos usados na sua comunidade escolar.",
   icons: {
-    icon: "/favicon.svg",
+    icon: "/logo.jpg",
+    apple: "/logo.jpg",
+    shortcut: "/logo.jpg",
   },
 };
 
