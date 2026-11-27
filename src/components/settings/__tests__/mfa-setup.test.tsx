@@ -112,10 +112,10 @@ describe("MfaSetup - sem MFA", () => {
     // Aguardar QR aparecer
     await screen.findByText("Escaneie o QR Code");
 
-    // Digitar código nos inputs OTP
+    // Colar código nos inputs OTP
     const inputs = screen.getAllByRole("textbox");
     await user.click(inputs[0]);
-    await user.keyboard("123456");
+    await user.paste("123456");
 
     // Clicar ativar
     await user.click(screen.getByText("Ativar 2FA"));
@@ -163,7 +163,7 @@ describe("MfaSetup - sem MFA", () => {
 
     const inputs = screen.getAllByRole("textbox");
     await user.click(inputs[0]);
-    await user.keyboard("000000");
+    await user.paste("000000");
 
     await user.click(screen.getByText("Ativar 2FA"));
 
@@ -212,10 +212,10 @@ describe("MfaSetup - com MFA ativado", () => {
 
     await user.click(screen.getByText("Desativar 2FA"));
 
-    // Digitar código de confirmação
+    // Colar código de confirmação
     const inputs = screen.getAllByRole("textbox");
     await user.click(inputs[0]);
-    await user.keyboard("123456");
+    await user.paste("123456");
 
     await user.click(screen.getByText("Confirmar desativação"));
 
@@ -239,7 +239,7 @@ describe("MfaSetup - com MFA ativado", () => {
 
     const inputs = screen.getAllByRole("textbox");
     await user.click(inputs[0]);
-    await user.keyboard("000000");
+    await user.paste("000000");
 
     await user.click(screen.getByText("Confirmar desativação"));
 
